@@ -8,8 +8,8 @@
 # 1. Start from a small official Python image (Debian "slim", Python 3.11 like the codespace).
 FROM python:3.11-slim
 
-# 2. Link the image to your GitHub repo, so the package page shows it. Replace YOUR-GITHUB-USER.
-LABEL org.opencontainers.image.source="https://github.com/YOUR-GITHUB-USER/machine-guard"
+# 2. Link the image to your GitHub repo, so the package page shows it. Replace mirabdullahyaser.
+LABEL org.opencontainers.image.source="https://github.com/mirabdullahyaser/machine-guard"
 
 # 3. Don't write .pyc files; print logs straight away instead of buffering them.
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -25,6 +25,8 @@ RUN pip install --no-cache-dir -r requirements-serve.txt
 # 6. Copy the code.
 COPY machine_guard/ machine_guard/
 COPY app/ app/
+COPY models/ models/
+
 
 # 7. Settings the app reads. APP_VERSION can be set at build time: --build-arg APP_VERSION=v2
 ARG APP_VERSION=v1
@@ -38,4 +40,4 @@ USER appuser
 
 # 9. Document the port, then start the server.
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

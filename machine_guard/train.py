@@ -1,13 +1,5 @@
 """Train a Machine Guard model, log it to MLflow and, if asked, register it.
 
-YOUR FILE TO COMPLETE. Search for "TODO". There are three groups:
-  - TODO (Lab 1), this morning: split, build, fit and score the model. Then
-        python -m machine_guard.train --no-mlflow
-    prints the champion's numbers (57 of 68 caught, 8 false alarms).
-  - TODO (Lab 2), before lunch: log params, metrics and tags to MLflow.
-  - TODO (Independent practice), afternoon: register the model and set its alias.
-Everything without a TODO is given. Read it, but you don't need to change it.
-
 Run from the repo root:
     python -m machine_guard.train                                   # the Day 1 champion settings
     python -m machine_guard.train --model decision_tree --class-weight none --no-engineered
@@ -36,12 +28,6 @@ from mlflow.tracking import MlflowClient
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precision_score, recall_score
 
 from machine_guard.features import REGISTERED_MODEL_NAME, SEED, build_pipeline, load_data, split
-
-
-
-def todo(step: str):
-    raise NotImplementedError(f"Not written yet: {step}. Open machine_guard/train.py and search for TODO.")
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATA = "data/raw/ai4i2020.csv"
@@ -95,16 +81,14 @@ def git_commit() -> tuple[str, bool]:
 def evaluate(y_true, y_pred) -> dict:
     """Shop-floor scorecard for one model on the test set."""
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
-    # TODO (Lab 1, step 4): fill in the last three. fn = missed breakdowns, fp = false alarms.
-    #   cost = missed x COST_MISSED + false alarms x COST_FALSE_ALARM
     return {
         "recall": recall_score(y_true, y_pred),
         "precision": precision_score(y_true, y_pred, zero_division=0),
         "f1": f1_score(y_true, y_pred),
         "accuracy": accuracy_score(y_true, y_pred),
-        "missed_failures": todo("Lab 1, step 4: missed_failures"),
-        "false_alarms": todo("Lab 1, step 4: false_alarms"),
-        "cost": todo("Lab 1, step 4: cost"),
+        "missed_failures": int(fn),
+        "false_alarms": int(fp),
+        "cost": int(fn * COST_MISSED + fp * COST_FALSE_ALARM),
     }
 
 
@@ -118,14 +102,11 @@ def model_settings(args) -> dict:
 def train(args):
     data_path = REPO_ROOT / args.data
     df = load_data(str(data_path))
-    # TODO (Lab 1, step 2): split df into X_train, X_test, y_train, y_test with split() from features.py
-    #   (stratified 80/20, seed 42: the same 2,000 test rows as Day 1)
-    X_train, X_test, y_train, y_test = todo("Lab 1, step 2: split the data")
+    X_train, X_test, y_train, y_test = split(df)
 
     class_weight = None if args.class_weight == "none" else args.class_weight
-    # TODO (Lab 1, step 3): build the model with build_pipeline(), passing
-    #   args.model, class_weight, args.engineered and **model_settings(args); then fit it on the training rows.
-    pipe = todo("Lab 1, step 3: build the pipeline")
+    pipe = build_pipeline(args.model, class_weight, args.engineered, **model_settings(args))
+    pipe.fit(X_train, y_train)
 
     proba = pipe.predict_proba(X_test)[:, 1]
     pred = (proba >= THRESHOLD).astype(int)
@@ -137,21 +118,21 @@ def train(args):
 def log_run(args, pipe, metrics, X_test, proba, data_path, n_rows) -> tuple[str, str | None]:
     commit, dirty = git_commit()
     with mlflow.start_run(run_name=args.run_name) as run:
-        # TODO (Lab 2, step 2): log the run's settings. Add class_weight, engineered and seed (SEED)
-        #   next to model, using the same names: they are how we compare runs later.
         mlflow.log_params({
             "model": args.model,
+            "class_weight": args.class_weight,
+            "engineered": args.engineered,
+            "seed": SEED,
             "threshold": THRESHOLD,
             # every setting the estimator really used, defaults included, so nothing is left to memory
             **{k: v for k, v in pipe.named_steps["model"].get_params().items()
                if k in ("n_estimators", "min_samples_leaf", "max_depth", "max_iter")},
         })
-        # TODO (Lab 2, step 3): log the metrics dict with mlflow.log_metrics(...)
-
-        # TODO (Lab 2, step 4): add the two lineage tags, git_commit (use commit) and
-        #   data_md5 (use data_md5(data_path)), to this dict.
+        mlflow.log_metrics(metrics)
         mlflow.set_tags({
+            "git_commit": commit,
             "git_dirty": dirty,
+            "data_md5": data_md5(data_path),
             "data_path": args.data,
             "data_rows": n_rows,
         })
@@ -160,17 +141,14 @@ def log_run(args, pipe, metrics, X_test, proba, data_path, n_rows) -> tuple[str,
                                  input_example=X_test.head(3))
         version = None
         if args.register:
-            # TODO (Independent practice): register the model this run just logged.
-            #   mv = mlflow.register_model(f"runs:/{run.info.run_id}/model", REGISTERED_MODEL_NAME)
-            mv = todo("independent practice: register the model")
+            mv = mlflow.register_model(f"runs:/{run.info.run_id}/model", REGISTERED_MODEL_NAME)
             version = mv.version
             client = MlflowClient()
             for key in ("git_commit", "data_md5"):  # copy lineage onto the model version itself
                 client.set_model_version_tag(REGISTERED_MODEL_NAME, version, key,
                                              commit if key == "git_commit" else data_md5(data_path))
             if args.alias:
-                # TODO (Independent practice): point args.alias at this version, the way you did in notebook 04.
-                todo("independent practice: set the alias")
+                client.set_registered_model_alias(REGISTERED_MODEL_NAME, args.alias, version)
         return run.info.run_id, version
 
 

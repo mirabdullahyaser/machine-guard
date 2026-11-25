@@ -1,0 +1,12 @@
+{
+  "model_version": "machine-guard-model-1",
+  "run_id": "1a0a17e9eb28427c903e016868a69bd8",
+  "data_md5": "cdfa9d23a8478bd21857a5b17aca255a",
+  "recall": 0.8382,
+  "source": "mlflow registry: models:/machine-guard@champion",
+  "registered_version": 1,
+  "alias": "champion",
+  "threshold": 0.5,
+  "sklearn_version": "1.5.2",
+  "exported_at": "2026-11-25T17:33:41+00:00"
+}

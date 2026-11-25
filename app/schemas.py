@@ -23,14 +23,10 @@ class SensorReading(BaseModel):
     # Literal[...] means "only these exact values". It also shows a dropdown in /docs.
     type: Literal[tuple(TYPE_VALUES)] = Field(..., examples=["L"], description="Product quality: L, M or H")
     air_temp_k: float = in_range("air_temp_k", 298.1)
-
-    # TODO 4: the four fields below accept ANY number, so a process temperature in Celsius (35.6) gets
-    # through. Give each one a range check, the same way as air_temp_k above. Example values:
-    # process_temp_k 308.6, rotational_speed_rpm 1551, torque_nm 42.8, tool_wear_min 0.
-    process_temp_k: float
-    rotational_speed_rpm: float
-    torque_nm: float
-    tool_wear_min: float
+    process_temp_k: float = in_range("process_temp_k", 308.6)
+    rotational_speed_rpm: float = in_range("rotational_speed_rpm", 1551)
+    torque_nm: float = in_range("torque_nm", 42.8)
+    tool_wear_min: float = in_range("tool_wear_min", 0)
 
 
 class Prediction(BaseModel):

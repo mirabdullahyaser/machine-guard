@@ -94,9 +94,7 @@ def health():
         _, meta = load_model()
     except Exception as err:  # the service is up, but cannot predict
         return JSONResponse(status_code=503, content={"status": "error", "detail": str(err)})
-    # TODO 1: return a dict with "status" set to "ok" and "model_version" taken from meta.
-    # Example of the answer: {"status": "ok", "model_version": "machine-guard-model-3"}
-    return {"status": "TODO", "model_version": "TODO"}
+    return {"status": "ok", "model_version": meta["model_version"]}
 
 
 @app.post("/predict", response_model=Prediction, dependencies=[Depends(require_api_key)])
@@ -106,13 +104,8 @@ def predict(reading: SensorReading, request: Request):
 
     # The pipeline expects a table with the six raw columns, in training order.
     row = pd.DataFrame([reading.model_dump()], columns=RAW_FEATURES)
-
-    # TODO 2: ask the model for the failure probability and turn it into a 0/1 prediction.
-    #   probability = float(model.predict_proba(row)[0, 1])   # column 1 = "fail"
-    #   prediction = 1 if the probability is at or above THRESHOLD, else 0 (use int(...))
-    # Then DELETE the raise line below: it is only there until you have done this TODO.
-    raise NotImplementedError("TODO 2 in app/main.py: compute probability and prediction")
-
+    probability = float(model.predict_proba(row)[0, 1])
+    prediction = int(probability >= THRESHOLD)
     latency_ms = round((time.perf_counter() - start) * 1000, 2)
 
     result = {
@@ -121,17 +114,15 @@ def predict(reading: SensorReading, request: Request):
         "threshold": THRESHOLD,
         "model_version": meta["model_version"],
     }
-    # TODO 3: save this prediction in the SQLite log. Select the 9 lines below (save_prediction
-    # down to "})") and press Ctrl+/ to uncomment them all at once.
-    # save_prediction({
-    #     "ts": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
-    #     "request_id": request.state.request_id,
-    #     **reading.model_dump(),
-    #     "failure_probability": result["failure_probability"],
-    #     "prediction": prediction,
-    #     "model_version": meta["model_version"],
-    #     "latency_ms": latency_ms,
-    # })
+    save_prediction({
+        "ts": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+        "request_id": request.state.request_id,
+        **reading.model_dump(),
+        "failure_probability": result["failure_probability"],
+        "prediction": prediction,
+        "model_version": meta["model_version"],
+        "latency_ms": latency_ms,
+    })
     # Picked up by the middleware, so the request's log line also says what was predicted.
     request.state.log_fields = {"model_version": meta["model_version"],
                                 "failure_probability": result["failure_probability"],
